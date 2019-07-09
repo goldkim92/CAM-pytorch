@@ -18,7 +18,7 @@ CLASSES = dataloader.CLASSES
 class CAM(object):
     def __init__(self):
         self.batch_size = 1
-        self.parent_dir = join('..','base_model','runs','ckpt')
+        self.parent_dir = join('..','hetero_model','runs','ckpt')
 
         # Device configuration
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -39,7 +39,7 @@ class CAM(object):
 
 
     def build_model(self):
-        self.model = model.VGG_for_CAM(self.parent_dir)
+        self.model = model.VGG_for_CAM(self.parent_dir, self.device)
         self.model = self.model.to(self.device)
         self.model.eval()
 
@@ -68,7 +68,7 @@ class CAM(object):
 
     def activation(self, input, top_idx):
         # get the most likely prediction of the model
-        score = self.model(input)
+        score, mean, rho = self.model(input)
         topk = score.topk(5)
         topk_probs = topk[0].squeeze(0)
         topk_idxs = topk[1].squeeze(0)
