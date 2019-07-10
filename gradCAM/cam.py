@@ -49,33 +49,29 @@ class CAM(object):
         input, target = input.unsqueeze(0), target.unsqueeze(0)
         input, target = input.to(self.device), target.to(self.device)
         return input, target
-
-
-    def torch2pil(self, input):
-        unnorm = util.UnNormalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225))
-        
-        img = input.cpu().squeeze(0)
-        img = unnorm(img)
-        img = tv.transforms.ToPILImage()(img)
-        return img
-        
-
-    def torch2classes(self, target):
-        class_idxs = target[0].nonzero().squeeze(0).cpu()
-        classes = [CLASSES[i] for i in class_idxs]
-        return classes
-
-
-    def activation(self, input, top_idx):
-        # get the most likely prediction of the model
+    
+    
+    def topk(self, input):
+        self.model.eval()
         score = self.model(input)
-        topk = score.topk(5)
-        topk_probs = topk[0].squeeze(0)
+        topk = score.topk(20)
+        topk_scores = topk[0].squeeze(0)
         topk_idxs = topk[1].squeeze(0)
         topk_clss = [CLASSES[i] for i in topk_idxs]
+        
+        return topk_scores, topk_idxs, topk_clss
 
+    
+    def activation(self, input, att_idx, phase='test'):
+        # model phase
+        if phase == 'train':
+            self.model.train()
+        else:
+            self.model.eval()
+        
         # get the gradient of the output with respect to the parameters of the model
-        score[:, topk_idxs[top_idx]].backward(retain_graph=True)
+        score = self.model(input)
+        score[:, att_idx].backward(retain_graph=True)
 
         # pull the gradients out of the model
         gradients = self.model.get_activations_gradient()
@@ -93,25 +89,17 @@ class CAM(object):
         grad_cam = activations * pooled_gradients
         grad_cam = grad_cam.mean(dim=0)
         grad_cam = torch.max(grad_cam, torch.tensor(0.))
-        grad_cam /= grad_cam.max()
 
-        return grad_cam, topk_probs, topk_clss
+        return grad_cam
 
 
-    def get_values(self, index, top_idx):
-        input, target = self.get_item(index)
-        img = self.torch2pil(input)
-        classes = self.torch2classes(target)
+    def get_values(self, data_idx, att_idx, phase='test'):
+        input, target = self.get_item(data_idx)
+        img = util.torch2pil(input)
         
-        grad_cam, topk_probs, topk_clss = self.activation(input, top_idx)
-        heatmap = Image.fromarray(np.array(grad_cam*255).astype(np.uint8))
-        heatmap = heatmap.resize(img.size, resample=Image.BILINEAR)
-
-        prob = topk_probs[top_idx]
-        cls = topk_clss[top_idx]
-        answer = cls in classes
-        return img, heatmap, prob, cls, answer 
-        
+        grad_cam = self.activation(input, att_idx, phase)
+        heatmap = util.cam2heatmap(grad_cam)
+        return img, grad_cam, heatmap
         
 
 
