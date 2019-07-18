@@ -5,6 +5,7 @@ import torchvision as tv
 import re
 import os
 from os.path import join
+from scipy import ndimage
 
 
 class UnNormalize(object):
@@ -39,33 +40,76 @@ def torch2pil(input):
     img = tv.transforms.ToPILImage()(img)
     return img
 
-
-# def torch2classes(target):
-#     '''
-#     Args:
-#         target (torch.cuda.tensor): target of size (1, C)
-#     Returns:
-#         true_classes
-#     '''
-#     class_idxs = target[0].nonzero().squeeze(0).cpu()
-#     true_classes = [CLASSES[i] for i in class_idxs]
-#     return true_classes
-    
     
 def cam2heatmap(cam):
     '''
     Args:
         cam (torch.tensor): activation map with size (14,14)
     Returns:
-        heatmap (PIL.Image): heatmap with size (224,224)
+        heatmap (np.array): heatmap with shape (224,224)
     '''
     cam /= cam.max()
     heatmap = Image.fromarray(np.array(cam*255).astype(np.uint8))
     heatmap = heatmap.resize((224,224), resample=Image.BILINEAR)
+    heatmap = np.array(heatmap).astype(np.float32)
     return heatmap
+
+
+def heatmap2boolmap(heatmap, a=0.2):
+    '''
+    Args:
+        heatmap (np.array): heatmap with shape (224,224)
+    Returns:
+        boolmap (np.bool): shape (224,224)
+    '''
+    if isinstance(a, float):
+        threshold = heatmap.max() * a
+    elif isinstance(a, int):
+        threshold = a
+    
+    boolmap = heatmap >= threshold
+    return boolmap
     
 
+def get_biggest_component(boolmap):
+    '''
+    Args:
+        boolmap (np.bool): shape (224, 224)
+    Returns:
+        boolmap_biggest (np.bool): shape (224, 224)
+    '''
+    segments, nb = ndimage.label(boolmap)
+    frequent_value = max(range(1,nb+1), key=segments.flatten().tolist().count)
+    boolmap_biggest = segments==frequent_value
+    return boolmap_biggest
 
+
+def boolmap2bbox(boolmap):
+    '''
+    Args:
+        boolmap (np.bool): shape (224,224)
+    Returns:
+        bbox (tuple): (xmin, ymin, width, height)
+    '''
+    mask_coords = np.transpose(np.nonzero(boolmap))
+
+    ymin, xmin = mask_coords.min(0)
+    ymax, xmax = mask_coords.max(0)
+    bbox = (xmin, ymin, xmax-xmin, ymax-ymin)
+    return bbox
+
+
+def bboxes_resize(img, bboxes, size=224):
+    w,h = img.size
+
+    bboxes_resized = []
+    for bbox in bboxes:
+        bbox = np.array(bbox)
+        bbox[0::2] = bbox[0::2] / w * size
+        bbox[1::2] = bbox[1::2] / h * size
+        bbox = tuple(bbox.astype(np.int))
+        bboxes_resized.append(bbox)
+    return bboxes_resized
 
 #############################################################################
 #############################################################################
