@@ -1,5 +1,5 @@
-*/runs/
-*/__pycache__/
-*/.ipynb_checkpoints/
-*/save/
-*/*.ipynb
+*/*/runs/
+*/*/__pycache__/
+*/*/.ipynb_checkpoints/
+*/*/save*/
+*/*/*.ipynb
