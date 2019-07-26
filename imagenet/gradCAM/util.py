@@ -95,7 +95,7 @@ def boolmap2bbox(boolmap):
 
     ymin, xmin = mask_coords.min(0)
     ymax, xmax = mask_coords.max(0)
-    bbox = (xmin, ymin, xmax-xmin, ymax-ymin)
+    bbox = (int(xmin), int(ymin), int(xmax-xmin), int(ymax-ymin))
     return bbox
 
 
@@ -110,6 +110,32 @@ def bboxes_resize(img, bboxes, size=224):
         bbox = tuple(bbox.astype(np.int))
         bboxes_resized.append(bbox)
     return bboxes_resized
+
+
+
+def get_iou(boxA, boxB):
+    # change the box format to (xmin, ymin, xmax, ymax)
+    boxA = (boxA[0], boxA[1], boxA[0]+boxA[2], boxA[1]+boxA[3])
+    boxB = (boxB[0], boxB[1], boxB[0]+boxB[2], boxB[1]+boxB[3])
+
+	# determine the (x, y)-coordinates of the intersection rectangle
+    xA = max(boxA[0], boxB[0])
+    yA = max(boxA[1], boxB[1])
+    xB = min(boxA[2], boxB[2])
+    yB = min(boxA[3], boxB[3])
+
+    # compute the area of intersection rectangle
+    interArea = max(0, xB - xA) * max(0, yB - yA)
+
+    # compute the area of both the prediction and ground-truth
+    # rectangles
+    boxAArea = (boxA[2] - boxA[0]) * (boxA[3] - boxA[1])
+    boxBArea = (boxB[2] - boxB[0]) * (boxB[3] - boxB[1])
+
+    # compute the iou
+    iou = interArea / float(boxAArea + boxBArea - interArea)
+    
+    return iou
 
 #############################################################################
 #############################################################################
